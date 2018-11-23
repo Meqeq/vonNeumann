@@ -1,0 +1,141 @@
+.machine {
+    padding: 2em;
+    display: flex;
+    justify-content: center;
+}
+
+.code {
+    width: 20em;
+    border: 0.1em solid rgb(85, 10, 10);
+}
+
+.code > div:first-child {
+    background-color: #000;
+    color: #fff;
+    border-bottom: 0.1em solid rgb(85, 10, 10);
+    text-align: center;
+}
+
+.code > textarea {
+    width: 100%;
+    height: 30em;
+}
+
+.cell {
+    width: 10em;
+    height: 11.5em;
+    border: 0.1em solid #000;
+    margin: 1em;
+}
+
+.label {
+    height: 1.5em;
+    line-height: 1.5em;
+    background-color: rgb(85, 10, 10);
+    color: #fff;
+    text-align: center;
+}
+
+.content {
+    height: 5em;
+    line-height: 5em;
+    font-size: 2em;
+    text-align: center;
+}
+
+.memory {
+    border: 0.1em solid rgb(85, 10, 10);
+    min-width: 17em;
+}
+
+.memory > div:first-child {
+    background-color: #000;
+    color: #fff;
+    text-align: center;
+}
+
+.run > div{
+    background-color: rgb(85, 10, 10);
+    color: #fff;
+    margin: 0.5em;
+    width: 9em;
+    height: 9em;
+    line-height: 9em;
+    padding: 0.3em;
+    text-align: center;
+    display: inline-block;
+}
+
+table {
+    margin: 1em;
+}
+
+tr:nth-child(odd) {
+    background-color: rgb(211, 211, 211);
+}
+
+thead tr {
+    background-color: rgb(85, 10, 10)!important;
+    color: #fff;
+    text-align: center;
+    border: 0.1em solid #000;
+}
+
+.tab > .name {
+    background-color: rgb(85, 10, 10)!important;
+    border-top: 0.2em solid rgb(255, 0, 0);
+    border-bottom: 0.2em solid rgb(255, 0, 0);
+    border-left: 0.2em solid rgb(255, 0, 0);
+    color: #fff;
+}
+
+td, th {
+    border: 0.1em solid #000;
+    min-width: 5em;
+    text-align: center;
+}
+
+.state, .run, .log {
+    margin: 0 1em;
+}
+
+.state {
+    margin-bottom: 0.5em;
+}
+
+.log {
+    margin-top: 0.5em;
+    height: 16.5em;
+    overflow: auto;
+}
+
+.log p {
+    margin-bottom: 0;
+}
+
+.machine-state {
+    background-color: #fff;
+    text-align: center;
+    padding: 0.5em;
+}
+
+.waiting {
+    background-color: rgb(158, 158, 158);
+}
+
+.compile {
+    background-color: rgb(243, 114, 29);
+}
+
+.ready {
+    background-color: rgb(65, 253, 127);
+}
+
+.running {
+    background-color: rgb(13, 206, 61);
+}
+
+.logs {
+    background-color: #fff;
+    padding: 0.5em;
+}

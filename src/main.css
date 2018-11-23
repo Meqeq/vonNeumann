@@ -1,0 +1,10 @@
+header {
+  background-color: #000;
+  color: #fff;
+  height: 2em;
+  font-size: 1.5em;
+  text-align: center;
+  line-height: 1.9em;
+  border-bottom: 0.1em solid rgb(85, 10, 10);
+}
+
