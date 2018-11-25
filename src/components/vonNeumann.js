@@ -2,6 +2,8 @@
 import React, { Component } from 'react';
 import '../css/vn.css';
 
+import ME from 'react-monaco-editor';
+
 export default class VonNeumann extends Component {
     constructor(props) {
         super(props);
@@ -25,12 +27,9 @@ export default class VonNeumann extends Component {
 
     setName(code) {
         let name = code.match(/.UNIT,\w+/);
-        console.log(name);
-        if(!name) return false;
-        else {
-            this.machine.name = name[0].substring(6);
-            return code.replace(name[0], "");
-        }
+
+        if(!name) throw new SyntaxError("Niepoprawna deklaracja nagłówka .UNIT");
+        return name[0].substring(6);
     }
 
     splitTextToLines(txt, regex = /[\w:.,@()#-]+/) {
@@ -51,12 +50,12 @@ export default class VonNeumann extends Component {
     setVariables(code) {
         let data = code.match(/.DATA[\w\n:.,#-]+(?=.CODE)/);
         
-        if(!data) return false;
+        if(!data) throw new SyntaxError("Niepoprawna deklaracja sekcji .DATA");
 
         let dataBlock = data[0].substring(6);
         
         let variables = this.splitTextToLines(dataBlock);
-        if(!variables) return false;
+        if(!variables) throw new Error("Brak zmiennych");
 
         this.makeVariables(variables);
 
@@ -69,7 +68,7 @@ export default class VonNeumann extends Component {
         let memory = [];
         let address = 0;
         let addresses = {};
-
+        console.log(array);
         array.forEach( element => {
             let res = element.match(/[\w]+:/);
             if(!res) return false;
@@ -187,15 +186,16 @@ export default class VonNeumann extends Component {
     }
 
     compile() {
-        let code = this.machine.code.replace(/\t/g, "").replace(/ /g, "");
-        
-        code = this.setName(code);
+        let code = this.machine.code.replace(/\t/g, "").replace(/ /g, "").replace(/\r\n/g, "\n");
 
-        if(!code) {
-            this.log("Nieprawidłowy nagłówek .UNIT", "error");
-            return false;
+        try {
+            this.machine.name = this.setName(code);
+
+
+        } catch(e) {
+            console.log(e.name + e.message);
         }
-
+        
         code = this.setVariables(code);
 
         if(!code) this.log("W sekcji .DATA wystąpiły błędy", "error");
@@ -203,6 +203,7 @@ export default class VonNeumann extends Component {
         if(!this.setInstructions(code)) this.log("W kodzie programu wystąpiły błędy", "error");
 
         this.machine.ready = true;
+        this.machine.running = false;
         this.machine.currentOp = 0;
         
         this.log("Skompilowano program: " + this.machine.name);
@@ -376,6 +377,11 @@ export default class VonNeumann extends Component {
         this.machine.logs.push({text, type});
     }
 
+    onChange(code) {
+        this.machine.code = code;
+        this.setState({ code });
+    }
+
     render() {
         return (
             <div className="machine">
@@ -417,10 +423,18 @@ export default class VonNeumann extends Component {
 
                 <div className="code">
                     <div>Kod</div>
-                    <textarea value={ this.state.code } onChange={ event => {
-                        this.setState({ code: event.target.value });
-                        this.machine.code = event.target.value;
-                    }}/>
+                    <ME 
+                        theme="vs-dark"
+                        options={{ 
+                            minimap: {enabled: false},
+                            lineNumbersMinChars: 3,
+                            lineDecorationsWidth: 0,
+                            scrollbar: { verticalScrollbarSize: 0 }
+                        }}
+                        value={ this.state.code }
+                        onChange={ value => this.onChange(value) }
+                    />
+                    
                 </div>
 
                 <div className="acc">
