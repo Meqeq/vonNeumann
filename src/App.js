@@ -10,7 +10,9 @@ export default class App extends Component {
   render() {
     return (
       <React.Fragment>
-        <header> Maszyna von Neumanna </header>
+        <header> 
+          <i className="fas fa-bong" /> 
+          Maszyna von Neumanna </header>
 
         <VN />
       </React.Fragment>

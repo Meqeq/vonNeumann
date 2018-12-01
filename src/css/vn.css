@@ -1,24 +1,210 @@
 .machine {
+    margin: 1em 0;
+}
+
+.row > div {
+    margin: 1em 0;
+    border-bottom: 0.1em solid #000;
+    padding-bottom: 1em;
+}
+
+.label {
+    background-color: #000;;
+    color: #fff;
+    text-align: center;
+    height: 1.5em;
+    line-height: 1.5em;
+}
+
+.sel {
+    -webkit-box-shadow: 0px 0px 10px 1px rgba(85,10,10,1);
+-moz-box-shadow: 0px 0px 10px 1px rgba(85,10,10,1);
+box-shadow: 0px 0px 10px 1px rgba(85,10,10,1);
+}
+
+.react-monaco-editor-container {
+    display: none;
+}
+
+.code > textarea {
+    width: 100%;
+    height: 100%;
+    background-color: rgb(30, 30, 30);
+    border: none;
+    padding: 0.5em;
+    color: #fff;
+}
+
+.code {
+    height: 28.5em;
+}
+
+.state-waiting {
+    background-color: rgb(158, 158, 158);
+}
+
+.state-compile {
+    background-color: rgb(243, 114, 29);
+}
+
+.state-ready {
+    background-color: rgb(65, 253, 127);
+}
+
+.state-running {
+    background-color: rgb(13, 206, 61);
+}
+
+.state-error {
+    background-color: rgb(182, 15, 15);
+}
+
+.state div {
+    margin-bottom: 0.5em;
+    border: 0.1em solid rgb(85, 10, 10);
+    text-align: center;
+    padding: 0.3em;
+}
+
+.control > div {
+    padding: 0.3em;
+    text-align: center;
+    background-color: rgb(85, 10, 10);
+    color: #fff;
+    margin: 0.5em 0;
+}
+
+.log {
+    border: 0.1em solid #000;
+}
+
+.logs {
+    padding: 0.3em;
+    max-height: 8em;
+    overflow: auto;
+}
+
+.logs p {
+    margin-bottom: 0;
+}
+
+table {
+    border: 0.1em solid rgb(85, 10, 10);
+    width: 90%;
+    margin: 1em auto;
+}
+
+td,th {
+    width: 30%;
+    text-align: center;
+}
+
+th {
+    background-color: rgb(97, 97, 97);
+    color: #fff;
+    text-align: center;
+    border-left: 0.1em solid rgb(85, 10, 10);
+}
+
+th:first-child {
+    border-left: none;
+}
+
+tr:nth-child(odd) {
+    background-color: rgb(187, 187, 187);
+}
+
+tr:nth-child(even) {
+    background-color: #fff;
+}
+
+tr {
+    border-top: 0.1em solid #000;
+    border-bottom: 0.1em solid #000;
+}
+
+.tab > .name {
+    border-top: 0.3em solid rgb(85, 10, 10);
+    border-bottom: 0.3em solid rgb(85, 10, 10);
+    background-color: rgb(235, 100, 100);
+}
+
+.control {
+    margin: 1em 0;
+}
+
+.acc::after {
+    content: '';
+    display: block;
+    clear: both;
+}
+
+.acc {
+    margin: 1em 0;
+}
+
+.acc > div {
+    width: 45%;
+    float: left;
+    height: 5.5em;
+    margin: 2.5%;
+    line-height: 4em;
+    text-align: center;
+    border: 0.1em solid #000;
+}
+
+.log-error {
+    color: rgb(190, 30, 30);
+}
+
+.log-info {
+    color: rgb(10, 75, 161);
+}
+
+.memory {
+    background-color: rgb(30, 30, 30);
+    padding-bottom: 1em;
+    min-height: 30em;
+}
+
+@media (min-width: 991px) {
+    .machine {
+        min-height: 30em;
+        margin: calc(50vh - 17em) 0;
+    }
+
+    .row > div {
+        margin: 0;
+        border: none;
+        padding-bottom: 0;
+    }
+
+    .react-monaco-editor-container {
+        display: block;
+    }
+
+    .code > textarea {
+        display: none;
+    }
+}
+
+/*
+.machine {
     padding: 2em;
     display: flex;
     justify-content: center;
 }
 
 .code {
-    width: 20em;
+    width: 25em;
     border: 0.1em solid rgb(85, 10, 10);
 }
 
-.code > div:first-child {
+.code > div:first-child, .state > div:first-child, .log > div:first-child{
     background-color: #000;
     color: #fff;
     border-bottom: 0.1em solid rgb(85, 10, 10);
     text-align: center;
-}
-
-.code > textarea {
-    width: 100%;
-    height: 30em;
 }
 
 .cell {
@@ -99,14 +285,13 @@ td, th {
     margin: 0 1em;
 }
 
-.state {
-    margin-bottom: 0.5em;
-}
+
 
 .log {
     margin-top: 0.5em;
     height: 16.5em;
     overflow: auto;
+    border: 0.1em solid rgb(85, 10, 10);
 }
 
 .log p {
@@ -119,23 +304,11 @@ td, th {
     padding: 0.5em;
 }
 
-.waiting {
-    background-color: rgb(158, 158, 158);
-}
-
-.compile {
-    background-color: rgb(243, 114, 29);
-}
-
-.ready {
-    background-color: rgb(65, 253, 127);
-}
-
-.running {
-    background-color: rgb(13, 206, 61);
-}
-
 .logs {
     background-color: #fff;
     padding: 0.5em;
 }
+
+.log-error {
+    color: rgb(182, 15, 15);
+}*/

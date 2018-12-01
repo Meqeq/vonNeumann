@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import '../css/vn.css';
 
 import ME from 'react-monaco-editor';
+import { Container, Row, Col } from 'reactstrap';
 
 export default class VonNeumann extends Component {
     constructor(props) {
@@ -11,204 +12,275 @@ export default class VonNeumann extends Component {
         this.state = {
             name: "",
             code: "",
-            accA: "",
-            accB: "",
+            accA: 0,
+            accB: 0,
             logs: [],
-            memory: [],
+            memory: { variables: [], addresses: {} },
             currentOp: 0,
             lastAcc: "A",
             ready: false,
             running: false,
-            operations: {}
+            error: false,
+            instructions: { code: [], labels: {} }
         }
 
         this.machine = this.state;
     }
-
+    /**
+     * Checks header and name of program, returns name when correct
+     * @param {string} code // Code of the program
+     */
     setName(code) {
-        let name = code.match(/.UNIT,\w+/);
-
-        if(!name) throw new SyntaxError("Niepoprawna deklaracja nagłówka .UNIT");
-        return name[0].substring(6);
+        let name = code.match(/.UNIT,(\w+)/); // matches .UNIT,(name)
+        
+        if( !name || name.length !== 2 ) throw new SyntaxError("Niepoprawna deklaracja nagłówka .UNIT");
+        return name[1];
     }
 
-    splitTextToLines(txt, regex = /[\w:.,@()#-]+/) {
-        let array = [];
-        let vr;
-        do {
-            vr = txt.match(regex);
-            if(vr) {
-                array.push(vr[0]);
-                txt = txt.replace(vr[0], "");
-            }
+    /**
+     * Returns Object containing memory with declared variables and its addresses
+     * @param {string} code // Code of the program
+     */
+    memoryInit(code) {
+        let data = code.match(/\.DATA\n+([\w\n:.,#-]+)(?=.CODE)/); // matches .DATA (block of variables)
+        if( !data || data.length !== 2 ) throw new SyntaxError("Niepoprawny blok zmiennych .DATA lub brak sekcji .CODE");
 
-        } while(vr);
-        
-        return array;
-    }
+        let lines = data[1].match(/[\w:.,@()#-]+/g); // matches all lines with variables | splits every variable declaration to array
+        if( !lines ) throw new Error("Brak zmiennych");
 
-    setVariables(code) {
-        let data = code.match(/.DATA[\w\n:.,#-]+(?=.CODE)/);
-        
-        if(!data) throw new SyntaxError("Niepoprawna deklaracja sekcji .DATA");
-
-        let dataBlock = data[0].substring(6);
-        
-        let variables = this.splitTextToLines(dataBlock);
-        if(!variables) throw new Error("Brak zmiennych");
-
-        this.makeVariables(variables);
-
-        this.chngNameforAddr();
-
-        return code.replace(data[0], "");
-    }
-
-    makeVariables(array) {
-        let memory = [];
+        let memory = { variables: [], addresses: {} }
         let address = 0;
-        let addresses = {};
-        console.log(array);
-        array.forEach( element => {
-            let res = element.match(/[\w]+:/);
-            if(!res) return false;
-            console.log(element);
-            let vName = res[0].substring(0, res[0].length - 1);
-            
-            element = element.replace(res[0], "");
 
-            res = element.match(/.WORD,/);
-            if(!res) return false;
-            element = element.replace(res[0], "");
-            
-            if( element.indexOf("#") !== -1 || element.indexOf(",") !== -1 ) {
-                let length = this.reserveTab(element, memory);
-                addresses[vName] = { type: 'tab', adr: address, len: length };
-                address += length;
-            }
-            else {
-                if( !isNaN(element) ) element = +element;
-                memory.push(element);
-                addresses[vName] = { type: 'var', adr: address };
-                address++;
-            }
-            
-        });
-        this.machine.memory = memory;
-        this.machine.addresses = addresses;
-        
-        return true;
-    }
+        lines.forEach( (element, key) => {
+            let res = element.match(/(\w+):.WORD,([\w,#-]+)/); // matches (name_of_variable): .WORD,(value)
 
-    reserveTab(content, memory) {
-        let tab = this.splitTextToLines(content + ",", /[#\w-]+,/);
-        let counter = 0;
-        //console.log(content);
-        tab.forEach( value => {
-            if(value.indexOf("#") === -1) {
-                value = value.replace(",", "");
+            if( !res || res.length !== 3 ) throw new SyntaxError("Niepoprawna deklaracja zmiennej w linii: " + (key + 1));
 
-                if(!isNaN(value)) value = +value;
+            if( res[2].indexOf("#") === -1 && res[2].indexOf(",") === -1 ) { // when variable is not array
+                if( !isNaN(res[2]) ) res[2] = +res[2]; // conversion to number if value in string is number
 
-                memory.push(value);
-                counter++;
-            } else {
-                let [amount, content] = value.match(/\w+/g);
+                memory.variables.push( res[2] );
+                memory.addresses[ res[1] ] = { type: 'var', adr: address++ };
+            } else { // when variable is array
+                memory.addresses[ res[1] ] = { type: 'tab', adr: address };
+
+                let tab = res[2].match(/([\w#-]+)/g);
                 
-                if(!isNaN(content)) content = + content;
+                if(!tab) throw new SyntaxError("Niepoprawna deklaracja tablicy w linii: " + (key + 1))
 
-                for(let i = 0; i < amount; i++, memory.push(content), counter++);
+                tab.forEach( value => {
+                    if(value.indexOf("#") === -1) {
+                        if(!isNaN(value)) value = +value;
+        
+                        memory.variables.push(value);
+                        address++;
+                    } else {
+                        let mVal = value.match(/(\d+)#(\d+)/);
+        
+                        if( !mVal || mVal.length !== 3 ) throw new SyntaxError("Niepoprawny zapis wartości w tablicy z użyciem #");
+                        
+                        if( !isNaN(mVal[2]) ) mVal[2] = + mVal[2];
+        
+                        for(let i = 0; i < mVal[1]; i++, memory.variables.push(mVal[2]), address++);
+                    }
+                });
+
+                memory.addresses[ res[1] ].len = address - memory.addresses[ res[1] ].adr;
             }
         });
 
-        return counter;
+        memory.variables.forEach( (value, key) => { // looks in vars for arrays names and changes it to address of first element
+            if(typeof memory.addresses[value] !== "undefined") memory.variables[key] = memory.addresses[value].adr*4;
+        });
+
+        return memory;
     }
 
-    chngNameforAddr() {
-        this.machine.memory.forEach( (value, key) => {
-            let tab = this.machine.addresses[value];
-            if(typeof tab !== "undefined") {
-                this.machine.memory[key] = tab.adr;
-            }
-        })
-    }
-
+    /**
+     * Return object containing array of operations with commands and labels
+     * @param {string} code Code of the program
+     */
     setInstructions(code) {
-        let instructions = code.match(/.CODE[\w\n\t\r,@():]+/);
-        if(!instructions) return false;
+        let ins = code.match(/\.CODE\n+([\w\n:.,#-@]+)(?=.END)/);
+        if(!ins || ins.length !== 2) throw new SyntaxError("Niepoprawna deklaracja bloku .CODE lub brak słowa kluczowego .END");
 
-        let codeBlock = instructions[0].substring(6);
+        let lines = ins[1].match(/[\w:.,@()#-]+/g);
+        if(!lines) throw new Error("Brak rozkazów");
 
-        let instructionSet = {
-            code: this.splitTextToLines(codeBlock),
-            labels: []
-        }
+        let insSet = { code: [], labels: {} }
 
-        if(!this.prepareCode(instructionSet)) return false;
-        this.machine.operations = instructionSet;
-        return true;
-    }
+        lines.forEach( (element, key) => {
+            let res = element.match(/(\w+:)?(\w+),([\w@]+)?,?([\w()-]+)?,?/);
+            
+            if( typeof res[1] !== "undefined" ) insSet.labels[ res[1].substring(0, res[1].length - 1) ] = key;
 
-    prepareCode(insSet) {
-        insSet.code.forEach( (element, key ) => {
-            let res = element.match(/\w+:/);
-            if(res) {
-                insSet.labels.push({ index: key, name: res[0].substring(0, res[0].length - 1) });
-                element = element.replace(res[0], "");
-            }
-
-            res = element.match(/\w+,/);
-            if(!res) return false;
-
-            let instruction = {};
-
-            instruction.command = res[0].substring(0, res[0].length - 1);
-
-            element = element.replace(res[0], "");
-
-            res = element.match(/[\w@\d]+,?/);
-
-            if(res) {
-                instruction.firstParam = res[0].replace(",", "");
-                element = element.replace(res[0], "");
-            }
-
-            res = element.match(/[(\w@)\d]+,?/);
-
-            if(res) {
-                instruction.secondParam = res[0].replace(",", "");
-                element = element.replace(res[0], "");
-            }
-
-            insSet.code[key] = instruction;
+            insSet.code[key] = { command: res[2], p1: res[3], p2: res[4] };
         });
-        return true;
+
+        return insSet;
     }
 
     compile() {
-        let code = this.machine.code.replace(/\t/g, "").replace(/ /g, "").replace(/\r\n/g, "\n");
-
         try {
+            let code = this.machine.code.replace(/\t/g, "").replace(/ /g, "").replace(/\r\n/g, "\n");
+
             this.machine.name = this.setName(code);
+            this.machine.memory = this.memoryInit(code);
+            this.machine.instructions = this.setInstructions(code);
 
+            this.machine.ready = true;
+            this.machine.running = false;
+            this.machine.error = false;
+            this.machine.currentOp = 0;
 
+            console.log(this.machine);
+
+            this.log("Skompilowano program: " + this.machine.name);
         } catch(e) {
-            console.log(e.name + e.message);
+            this.log(e.name + ": " + e.message, "error");
+            this.machine.ready = false;
+            this.machine.error = true;
+        } finally {
+            this.setState(this.machine);
         }
-        
-        code = this.setVariables(code);
+    }
 
-        if(!code) this.log("W sekcji .DATA wystąpiły błędy", "error");
+    memoryRead(value) {
+        if( !isNaN(value) ) return +value;
 
-        if(!this.setInstructions(code)) this.log("W kodzie programu wystąpiły błędy", "error");
+        let b = value.match(/\(/g);
 
-        this.machine.ready = true;
-        this.machine.running = false;
+        if(!b) throw new Error("Wartość " + value + " jest niepoprawna");
+
+        if(b.length === 1) {
+            let vr = value.replace("(", "").replace(")", "");
+            let isVar = this.machine.memory.addresses[vr];
+
+            if(!isVar) throw new Error("Zmienna: " + value + " niezostała zadeklarowana");
+
+            return this.machine.memory.variables[isVar.adr];
+        }
+
+        if(b.length === 2) {
+            let vr = value.replace(/\(/, "").replace(/\)/, "");
+            return this.machine.memory.variables[this.memoryRead(vr) / 4];
+        }
+    }
+
+    run() {
+        try {
+            if( !this.machine.ready || this.machine.error ) throw new Error("Kod programu nie został jeszcze skompilowany");
+            console.log("-------------------------");
+            console.log(this.machine.currentOp);
+            let operation = this.machine.instructions.code[this.machine.currentOp++];
+            console.log(operation.command + "," + operation.p1 + "," + operation.p2);
+            switch(operation.command) {
+                case 'load':
+                    this.chngAccContent(operation.p1, this.memoryRead(operation.p2));
+                    break;
+                
+                case 'add':
+                    let newValue = operation.p1.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
+                    newValue += this.memoryRead(operation.p2);
+    
+                    this.chngAccContent(operation.p1, newValue);
+                    break;
+
+                case 'sub':
+                    newValue = operation.p1.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
+                    newValue -= this.memoryRead(operation.p2);
+    
+                    this.chngAccContent(operation.p1, newValue);
+                    break;
+
+                case 'mult':
+                    newValue = operation.p1.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
+                    newValue *= this.memoryRead(operation.p2);
+    
+                    this.chngAccContent(operation.p1, newValue);
+                    break;
+                
+                case 'div':
+                    let param = this.memoryRead(operation.p2);
+                    if(param === 0) throw new Error("Nastąpiło podzielenie przez 0");
+
+                    newValue = operation.p1.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
+                    newValue = Math.floor(newValue / param);
+    
+                    this.chngAccContent(operation.p1, newValue);
+                    break;
+                
+                case 'jump':
+                    this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    break;
+    
+                case 'jneg': 
+                    if(this.machine.lastAcc === "A" && this.machine.accA < 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    if(this.machine.lastAcc === "B" && this.machine.accB < 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    break;
+    
+                case 'jpos':
+                    if(this.machine.lastAcc === "A" && this.machine.accA > 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    if(this.machine.lastAcc === "B" && this.machine.accB > 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    break;
+    
+                case 'jzero':
+                    if(this.machine.lastAcc === "A" && this.machine.accA === 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    if(this.machine.lastAcc === "B" && this.machine.accB === 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    break;
+    
+                case 'jnzero':
+                    if(this.machine.lastAcc === "A" && this.machine.accA !== 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    if(this.machine.lastAcc === "B" && this.machine.accB !== 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    break;
+    
+                case 'store':
+                //console.log(this.storePath(operation.secondParam));
+                    if(operation.p1.indexOf("A") !== -1) {
+                        this.machine.lastAcc = "A";
+                        this.memoryStore(this.machine.accA, operation.p2);
+                    } else {
+                        this.machine.lastAcc = "B";
+                        this.memoryStore(this.machine.accB, operation.p2);
+                    }
+                    break;
+                    
+                case 'halt':
+                    this.log("Zakończono program");
+                    this.machine.running = false;
+                    break;
+                
+                default: 
+                    throw new Error("Nieznany rozkaz");
+            }
+
+            if(this.machine.running) setTimeout( () => this.run(), 10);
+        } catch(e) {
+            this.log(e.name + ": " + e.message, "error");
+            this.machine.ready = false;
+            this.machine.error = true;
+        } finally {
+            this.setState(this.machine);
+        }
+    }
+
+    start() {
+        this.machine.running = true;
         this.machine.currentOp = 0;
-        
-        this.log("Skompilowano program: " + this.machine.name);
+        this.run();
+    }
 
-        this.setState(this.machine);
+    memoryStore(value, adr) {
+        if(adr.indexOf("(") === -1) {
+            let address = this.machine.memory.addresses[adr];
+            if(!address) throw new Error("Zmienna " + adr + " niezostała zadeklarowana");
+
+            this.machine.memory.variables[address.adr] = value;
+        } else {
+            console.log("Adres do zapisania" + this.memoryRead(adr));
+            this.machine.memory.variables[ this.memoryRead(adr) / 4 ] = value;
+            console.log(this.machine.memory.variables);
+        }
     }
 
     chngAccContent(acc, value) {
@@ -221,158 +293,7 @@ export default class VonNeumann extends Component {
             this.machine.lastAcc = "B";
         }
     }
-
-    readMemory(addr) {
-        if(!isNaN(addr)) return +addr;
-
-        let b = addr.match(/\(/g);
-        //console.log(b);
-        if(!b) return addr;
-        
-        if(b.length === 1) {
-            let vr = addr.replace("(", "").replace(")", "");
-            let isVar = this.machine.addresses[vr];
-            console.log(isVar);
-            if(!isVar) return addr;
-
-            return this.machine.memory[isVar.adr];
-        }
-
-        if(b.length === 2) {
-            let vr = addr.replace(/\(/, "").replace(/\)/, "");
-            return this.machine.memory[this.readMemory(vr)];
-        }
-    }
-
-    storePath(param) {
-        if(!isNaN(param)) return +param;
-
-        let b = param.match(/\(/g);
-
-        if(!b) {
-            return this.machine.addresses[param].adr;
-        } else {
-            return this.readMemory(param);
-        }
-    }
-
-    start() {
-        if(this.machine.ready) {
-            this.machine.running = true;
-            this.run();
-        }
-    }
-
-    run() {
-        if(this.machine.running) {
-            console.log("AKTUALNA OPERACJA: " + this.machine.currentOp);
-            if(typeof this.machine.operations.code === "undefined") this.compile();
-
-            //console.log(this.machine);
-            let operation = this.machine.operations.code[this.machine.currentOp++];
-            console.log(operation);
-            switch(operation.command) {
-                case 'load':
-                    this.chngAccContent(operation.firstParam, this.readMemory(operation.secondParam));
-                    this.log("Załadowano: " + operation.secondParam + " do " + operation.firstParam);
-                    break;
-                
-                case 'add':
-                    let newValue = operation.firstParam.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
-                    newValue += this.readMemory(operation.secondParam);
-    
-                    this.chngAccContent(operation.firstParam, newValue);
-                    this.log("Dodano: " + operation.secondParam + " do " + operation.firstParam);
-                    break;
-    
-                case 'sub':
-                    newValue = operation.firstParam.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
-                    newValue -= this.readMemory(operation.secondParam);
-    
-                    this.chngAccContent(operation.firstParam, newValue);
-                    this.log("Odjęto: " + operation.secondParam + " od " + operation.firstParam);
-                    break;
-    
-                case 'mult':
-                    newValue = operation.firstParam.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
-                    newValue *= this.readMemory(operation.secondParam);
-    
-                    this.chngAccContent(operation.firstParam, newValue);
-                    this.log("Pomnożono: " + operation.firstParam + " przez " + operation.secondParam);
-                    break;
-    
-                case 'div':
-                    newValue = operation.firstParam.indexOf("A") !== -1 ? this.machine.accA : this.machine.accB;
-                    newValue = Math.floor(newValue / this.readMemory(operation.secondParam));
-    
-                    this.chngAccContent(operation.firstParam, newValue);
-                    this.log("Podzielono: " + operation.firstParam + " przez " + operation.secondParam);
-                    break;
-    
-                case 'jump':
-                    this.machine.currentOp = this.jump(operation.firstParam);
-                    this.log("Skok bezwarunkowy do: " + operation.firstParam);
-                    break;
-    
-                case 'jneg': 
-                    if(this.machine.lastAcc === "A" && this.machine.accA < 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    if(this.machine.lastAcc === "B" && this.machine.accB < 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    this.log("Skok jeśli neg do: " + operation.firstParam);
-                    break;
-    
-                case 'jpos':
-                    if(this.machine.lastAcc === "A" && this.machine.accA > 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    if(this.machine.lastAcc === "B" && this.machine.accB > 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    this.log("Skok jeśli pos do: " + operation.firstParam);
-                    break;
-    
-                case 'jzero':
-                    if(this.machine.lastAcc === "A" && this.machine.accA === 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    if(this.machine.lastAcc === "B" && this.machine.accB === 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    this.log("Skok jeśli zero do: " + operation.firstParam);
-                    break;
-    
-                case 'jnzero':
-                    if(this.machine.lastAcc === "A" && this.machine.accA !== 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    if(this.machine.lastAcc === "B" && this.machine.accB !== 0) this.machine.currentOp = this.jump(operation.firstParam);
-                    this.log("Skok jeśli nzero do: " + operation.firstParam);
-                    break;
-    
-                case 'store':
-                //console.log(this.storePath(operation.secondParam));
-                    if(operation.firstParam.indexOf("A") !== -1) {
-                        this.machine.lastAcc = "A";
-                        this.machine.memory[this.storePath(operation.secondParam)] = this.machine.accA;
-                    } else {
-                        this.machine.lastAcc = "B";
-                        this.machine.memory[this.storePath(operation.secondParam)] = this.machine.accB;
-                    }
-                    this.log("Zapisano zawartość " + operation.firstParam + " w " + operation.secondParam);
-                    break;
-                    
-                case 'halt':
-                    this.log("Zakończono program");
-                    this.machine.running = false;
-                    break;
-                default:
-                    console.log(JSON.stringify(this.machine.memory));
-                    console.log("Nieznany rozkaz");
-            }
-            setTimeout( () => this.run(), 40);
-            this.setState(this.machine);
-        }
-    }
-
-    memoryStore(index, content) {
-        let adr = this.state.memory.findIndex( value => (value.name === index ));
-        //console.log(this.kek.memory[3]);
-        this.kek.memory[adr].value = content;
-    }
-
-    jump(label) {
-        return (this.machine.operations.labels.find( value => (value.name === label))).index;
-    }
-
+   
     log(text, type = "info") {
         this.machine.logs.push({text, type});
     }
@@ -384,132 +305,128 @@ export default class VonNeumann extends Component {
 
     render() {
         return (
-            <div className="machine">
-                <div className="control">
-                    <div className="state code">
-                        <div> Stan </div>
-                        { this.state.code !== "" ?
-                            <React.Fragment>
-                            {
-                                this.machine.memory.length > 0 ?
-                                <React.Fragment>
-                                {
-                                    this.machine.running ?
-                                    <div className="running machine-state"> Runnnning </div> :
-                                    <div className="ready machine-state"> Gotowy do działania </div>
-                                }
-                                </React.Fragment> :
-                                <div className="compile machine-state"> Skompiluj wprowadzony kod </div>
-                            }
-                            </React.Fragment> :
-                            <div className="waiting machine-state"> Wprowadź kod programu </div>
-                        }
-                    </div>
-                    <div className="run">
-                        <div onClick={ () => this.compile() }> Skompiluj</div>
-                        <div onClick={ () => this.start() }> Uruchom </div>
-                    </div>
-                    <div className="log code">
-                        <div> Dziennik zdarzeń </div>
-                        <div className="logs">
-                            { this.state.logs.map( (value, key) => (
-                                <p key={key}>
-                                    { key + 1 } ) { value.text }
-                                </p>
-                            )) }
+            <Container fluid className="machine">
+                <Row>
+                    <Col md="4" xs="12">
+                        <div className="label">Kod</div>
+                        <div className={ this.state.code === "" ? "code sel" : "code" }>
+                            <ME 
+                                theme="vs-dark"
+                                options={{ 
+                                    minimap: {enabled: false},
+                                    lineNumbersMinChars: 3,
+                                    lineDecorationsWidth: 0,
+                                    scrollbar: { verticalScrollbarSize: 0 }
+                                }}
+                                value={ this.state.code }
+                                onChange={ value => this.onChange(value) }
+                            /> 
+                            <textarea value={ this.state.code } onChange={ value => { this.setState({ code: value.target.value }); this.machine.code = value.target.value } }/>    
                         </div>
-                    </div>
-                </div>
-
-                <div className="code">
-                    <div>Kod</div>
-                    <ME 
-                        theme="vs-dark"
-                        options={{ 
-                            minimap: {enabled: false},
-                            lineNumbersMinChars: 3,
-                            lineDecorationsWidth: 0,
-                            scrollbar: { verticalScrollbarSize: 0 }
-                        }}
-                        value={ this.state.code }
-                        onChange={ value => this.onChange(value) }
-                    />
-                    
-                </div>
-
-                <div className="acc">
-                    <div className="accA cell">
-                        <div className="label"> Akumulator @A </div>
-                        <div className="content">
-                            { this.state.accA }
-                        </div>
-                    </div>
-                    <div className="accB cell">
-                        <div className="label"> Akumulator @B </div>
-                        <div className="content">
-                            { this.state.accB }
-                        </div>
-                    </div>
-                </div>
-
-                <div className="memory">
-                    <div> Pamięć operacyjna </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>
-                                    Nazwa
-                                </th>
-                                <th>
-                                    Adres
-                                </th>
-                                <th>
-                                    Wartość
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            { this.state.memory.map( (value, key) => {
-                                let name = Object.keys(this.machine.addresses).find( value => (this.machine.addresses[value].adr === key));
-                                let isTab = Object.keys(this.machine.addresses).find( value => (this.machine.addresses[value].type === "tab" && this.machine.addresses[value].adr === key));
-                                let len = "";
-                                if(isTab) len = this.machine.addresses[isTab].len;
-        
-                                return(
-                                    <tr key={ key } className={ isTab ? "tab" : "" }>
-                                        { name &&
-                                            <td rowSpan={ len } className="name">
-                                                { name }
-                                            </td>
+                    </Col>
+                    <Col md="3" xs="12">
+                        <div>
+                            <div className="label"> Stan </div>
+                            <div className="state">
+                                { this.state.code === "" ?
+                                    <div className="state-waiting"> Wprowadź kod </div> :
+                                    <React.Fragment>
+                                        { this.state.error ?
+                                            <div className="state-error"> Wystąpił błąd </div>:
+                                            <React.Fragment>
+                                                { this.machine.memory.variables.length === 0 ?
+                                                    <div className="state-compile"> Skompiluj wprowadzony kod </div>: 
+                                                    <React.Fragment>
+                                                        { this.machine.running ?
+                                                            <div className="state-running"> Runnnnnnning </div> :
+                                                            <div className="state-ready"> Gotowy do działania </div>
+                                                        }
+                                                    </React.Fragment>
+                                                }
+                                            </React.Fragment>
                                         }
-                                        <td>
-                                            { key }
-                                        </td>
-                                        <td>
-                                            { value }
-                                        </td>
+                                    </React.Fragment>
+                                }
+                            </div>
+                        </div>
+
+                        <div className="control">
+                            <div onClick={ () => this.compile() } className={ this.state.code !== "" && !this.state.ready ? "sel" : ""}> Skompiluj </div>
+                            <div onClick={ () => this.start() } className={ this.state.ready ? "sel": ""}> Uruchom </div>
+                            <div onClick={ () => this.run() }> Wykonaj krok </div>
+                        </div>
+                        
+                        <div className="acc">
+                            <div>
+                                <div className="label"> @A </div>
+                                { this.machine.accA }
+                            </div>
+                            <div>
+                                <div className="label"> @B </div>
+                                { this.machine.accB }
+                            </div>
+                        </div>
+
+                        <div className={ this.state.error ? "log sel" : "log" }>
+                            <div className="label"> Dziennik zdarzeń </div>
+                            <div className="logs">
+                                { this.state.logs.map( (value, key) => (
+                                    <p key={key} className={ "log-" + value.type }>
+                                        { key + 1 } ) { value.text }
+                                    </p>
+                                )) }
+                            </div>
+                        </div>
+                    </Col>
+                    <Col md="5" xs="12">
+                        <div className="memory">
+                            <div className="label"> Pamięć operacyjna </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            Nazwa
+                                        </th>
+                                        <th>
+                                            Adres
+                                        </th>
+                                        <th>
+                                            Wartość
+                                        </th>
                                     </tr>
-                                );
-                            }) }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                </thead>
+                                <tbody>
+                                    { this.state.memory.variables.map( (value, key) => {
+                                        let name = Object.keys(this.machine.memory.addresses).find( value => (this.machine.memory.addresses[value].adr === key));
+                                        let isTab = Object.keys(this.machine.memory.addresses).find( value => (this.machine.memory.addresses[value].type === "tab" && this.machine.memory.addresses[value].adr === key));
+                                        let len = "";
+                                        if(isTab) len = this.machine.memory.addresses[isTab].len;
+                
+                                        return(
+                                            <tr key={ key } className={ isTab ? "tab" : "" }>
+                                                { name &&
+                                                    <td rowSpan={ len } className="name">
+                                                        { name }
+                                                    </td>
+                                                }
+                                                <td>
+                                                    { key*4 }
+                                                </td>
+                                                <td>
+                                                    { value }
+                                                </td>
+                                            </tr>
+                                        );
+                                    }) }
+                                </tbody>
+                            </table>
+                        </div>
+                    </Col>
+                </Row>
+            </Container>
         );
     }
 }
-/*
-<div className="cells">
-                        { this.state.memory.map( (value, key) => (
-                            <div className="cell" key={ key }>
-                                <div className="label"> { value.name } </div>
-                                <div className="content">
-                                    { value.value }
-                                </div>
-                            </div>
-                        ))}
-                    </div>*/
-
 /*
 
 

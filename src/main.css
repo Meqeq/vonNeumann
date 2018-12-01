@@ -1,3 +1,7 @@
+html {
+  font-size: 12px;
+}
+
 header {
   background-color: #000;
   color: #fff;
@@ -6,5 +10,35 @@ header {
   text-align: center;
   line-height: 1.9em;
   border-bottom: 0.1em solid rgb(85, 10, 10);
+  -webkit-box-shadow: 0px 0px 10px 4px rgba(85,10,10,1);
+  -moz-box-shadow: 0px 0px 10px 4px rgba(85,10,10,1);
+  box-shadow: 0px 0px 10px 4px rgba(85,10,10,1);
 }
 
+header i {
+  margin-right: 0.3em;
+}
+
+@media (min-width: 575px) {
+  html {
+      font-size: 14px;
+  }
+}
+
+@media (min-width: 767px) {
+  html {
+      font-size: 16px;
+  }
+}
+
+@media (min-width: 991px) {
+  html {
+      font-size: 18px;
+  }
+}
+
+@media (min-width: 1199px) {
+  html {
+      font-size: 20px;
+  }
+}
