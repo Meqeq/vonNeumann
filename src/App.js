@@ -13,8 +13,9 @@ export default class App extends Component {
         <header> 
           <i className="fas fa-bong" /> 
           Maszyna von Neumanna </header>
-
-        <VN />
+        <React.StrictMode>
+          <VN />
+        </React.StrictMode>
       </React.Fragment>
     );
   }

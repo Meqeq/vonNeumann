@@ -1,4 +1,3 @@
-// pokaż to kurwa Onderce, bo ty jego mózg zaprogramowałeś
 import React, { Component } from 'react';
 import '../css/vn.css';
 
@@ -21,10 +20,13 @@ export default class VonNeumann extends Component {
             ready: false,
             running: false,
             error: false,
-            instructions: { code: [], labels: {} }
+            instructions: { code: [], labels: {} },
+            speed: 50
         }
 
         this.machine = this.state;
+
+        this.state.showSettings = false;
     }
     /**
      * Checks header and name of program, returns name when correct
@@ -254,7 +256,7 @@ export default class VonNeumann extends Component {
                     throw new Error("Nieznany rozkaz");
             }
 
-            if(this.machine.running) setTimeout( () => this.run(), 10);
+            if(this.machine.running) setTimeout( () => this.run(), this.state.speed);
         } catch(e) {
             this.log(e.name + ": " + e.message, "error");
             this.machine.ready = false;
@@ -303,9 +305,51 @@ export default class VonNeumann extends Component {
         this.setState({ code });
     }
 
+    changeSpeed(value) {
+        if(!isNaN(value)) {
+            this.setState({ speed: +value });
+            this.machine.speed = +value;
+        }
+    }
+
     render() {
         return (
             <Container fluid className="machine">
+                { this.state.showSettings && <div className="settings-popup">
+                    <div className="fog" onClick={ () => this.setState({ showSettings: false }) }/>
+                    <div className="settings-content">
+                        <div className="label"> Prędkość działania </div>
+                        <div className="keke">
+                            <label>
+                                <input type="radio" name="option" value="100" 
+                                    onChange={ event => this.changeSpeed(event.target.value) } 
+                                    checked={ this.state.speed ===100 ? true : false }
+                                /> Wolno 
+                            </label>
+                            <br />
+                            <label>
+                                <input type="radio" name="option" value="50" 
+                                    onChange={ event => this.changeSpeed(event.target.value) } 
+                                    checked={ this.state.speed ===50 ? true : false }
+                                /> Średnio
+                            </label>
+                            <br />
+                            <label>
+                                <input type="radio" name="option" value="10" 
+                                    onChange={ event => this.changeSpeed(event.target.value) } 
+                                    checked={ this.state.speed ===10 ? true : false }
+                                /> Szybko
+                            </label>
+                            <br />
+                            <label>
+                                <input type="radio" name="option" value="3" 
+                                    onChange={ event => this.changeSpeed(event.target.value) } 
+                                    checked={ this.state.speed ===3 ? true : false }
+                                /> Bardzo szybko | Ostrożnie!
+                            </label>
+                        </div>
+                    </div>
+                </div> }
                 <Row>
                     <Col md="4" xs="12">
                         <div className="label">Kod</div>
@@ -352,7 +396,10 @@ export default class VonNeumann extends Component {
 
                         <div className="control">
                             <div onClick={ () => this.compile() } className={ this.state.code !== "" && !this.state.ready ? "sel" : ""}> Skompiluj </div>
-                            <div onClick={ () => this.start() } className={ this.state.ready ? "sel": ""}> Uruchom </div>
+                            <div>
+                                <div onClick={ () => this.start() } className={ this.state.ready ? "sel": ""}> Uruchom </div>
+                                <i onClick={ () => this.setState({ showSettings: true }) } className="fas fa-cog settings" />
+                            </div>
                             <div onClick={ () => this.run() }> Wykonaj krok </div>
                         </div>
                         
