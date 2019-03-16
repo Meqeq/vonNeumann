@@ -1,0 +1,27 @@
+
+.state-waiting {
+    background-color: rgb(158, 158, 158);
+}
+
+.state-compile {
+    background-color: rgb(243, 114, 29);
+}
+
+.state-ready {
+    background-color: rgb(65, 253, 127);
+}
+
+.state-running {
+    background-color: rgb(13, 206, 61);
+}
+
+.state-error {
+    background-color: rgb(182, 15, 15);
+}
+
+.state div {
+    margin-bottom: 0.5em;
+    border: 0.1em solid rgb(85, 10, 10);
+    text-align: center;
+    padding: 0.3em;
+}

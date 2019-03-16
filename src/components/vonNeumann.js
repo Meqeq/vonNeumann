@@ -1,35 +1,47 @@
 import React, { Component } from 'react';
+import cookie from 'react-cookies';
 import '../css/vn.css';
 
 import ME from 'react-monaco-editor';
 import { Container, Row, Col } from 'reactstrap';
+import Settings from './settings';
+import Memory from './memory';
+import State from './state';
+import Log from './log';
 
 export default class VonNeumann extends Component {
     constructor(props) {
         super(props);
+
+        this.machine = {
+            name: "",
+            lastAcc: "",
+            accA: 0,
+            accB: 0,
+            currentOp: 0,
+            ready: false,
+            error: false,
+            running: false,
+            memory: { variables: [], addresses: {} },
+            instructions: { code: [], labels: {} }
+        }
 
         this.state = {
             name: "",
             code: "",
             accA: 0,
             accB: 0,
-            logs: [],
-            memory: { variables: [], addresses: {} },
-            currentOp: 0,
-            lastAcc: "A",
+            speed: 50,
             ready: false,
-            running: false,
             error: false,
-            instructions: { code: [], labels: {} },
-            speed: 50
+            running: false,
+            showSettings: false,
+            memory: { variables: [], addresses: {} },
+            logs: []
         }
-
-        this.machine = this.state;
-
-        this.state.showSettings = false;
     }
     /**
-     * Checks header and name of program, returns name when correct
+     * Check header and name of program, returns name when correct
      * @param {string} code // Code of the program
      */
     setName(code) {
@@ -40,7 +52,7 @@ export default class VonNeumann extends Component {
     }
 
     /**
-     * Returns Object containing memory with declared variables and its addresses
+     * Return Object containing memory with declared variables and its addresses
      * @param {string} code // Code of the program
      */
     memoryInit(code) {
@@ -94,7 +106,7 @@ export default class VonNeumann extends Component {
         memory.variables.forEach( (value, key) => { // looks in vars for arrays names and changes it to address of first element
             if(typeof memory.addresses[value] !== "undefined") memory.variables[key] = memory.addresses[value].adr*4;
         });
-
+//console.log(memory);
         return memory;
     }
 
@@ -103,16 +115,16 @@ export default class VonNeumann extends Component {
      * @param {string} code Code of the program
      */
     setInstructions(code) {
-        let ins = code.match(/\.CODE\n+([\w\n:.,#-@]+)(?=.END)/);
+        let ins = code.match(/\.CODE\n+([\w\n:.,#-@]+)(?=.END)/); // matches .CODE section
         if(!ins || ins.length !== 2) throw new SyntaxError("Niepoprawna deklaracja bloku .CODE lub brak słowa kluczowego .END");
 
-        let lines = ins[1].match(/[\w:.,@()#-]+/g);
+        let lines = ins[1].match(/[\w:.,@()#-]+/g); // matches all lines with command
         if(!lines) throw new Error("Brak rozkazów");
 
         let insSet = { code: [], labels: {} }
 
         lines.forEach( (element, key) => {
-            let res = element.match(/(\w+:)?(\w+),([\w@]+)?,?([\w()-]+)?,?/);
+            let res = element.match(/(\w+:)?(\w+),([\w@]+)?,?([\w()-]+)?,?/); // matches (label):? (command), (param1)?, (param2)?
             
             if( typeof res[1] !== "undefined" ) insSet.labels[ res[1].substring(0, res[1].length - 1) ] = key;
 
@@ -122,37 +134,60 @@ export default class VonNeumann extends Component {
         return insSet;
     }
 
+    /**
+     * Set name, variables and commands 
+     */
     compile() {
         try {
-            let code = this.machine.code.replace(/\t/g, "").replace(/ /g, "").replace(/\r\n/g, "\n");
+            let code = this.state.code.replace(/\t/g, "").replace(/ /g, "").replace(/\r\n/g, "\n"); // delete all spaces and tabs
 
-            this.machine.name = this.setName(code);
-            this.machine.memory = this.memoryInit(code);
-            this.machine.instructions = this.setInstructions(code);
-
-            this.machine.ready = true;
+            this.machine.name = this.setName(code); // set name
+            this.machine.memory = this.memoryInit(code); // set variables and adressess
+            this.machine.instructions = this.setInstructions(code); // set commands
+ 
+            this.machine.ready = true; // change state of machine
             this.machine.running = false;
             this.machine.error = false;
             this.machine.currentOp = 0;
 
-            console.log(this.machine);
-
             this.log("Skompilowano program: " + this.machine.name);
+            console.log(this.machine.memory)
         } catch(e) {
             this.log(e.name + ": " + e.message, "error");
             this.machine.ready = false;
             this.machine.error = true;
         } finally {
-            this.setState(this.machine);
+            this.setState({
+                name: this.machine.name,
+                ready: this.machine.ready,
+                error: this.machine.error,
+                running: this.machine.running,
+                currentOp: this.machine.currentOp,
+                memory: this.machine.memory
+            });
         }
     }
 
+    /**
+     * Returns value of variable or number 
+     * @param {string} value adress of variable or number
+     */
     memoryRead(value) {
         if( !isNaN(value) ) return +value;
 
         let b = value.match(/\(/g);
 
-        if(!b) throw new Error("Wartość " + value + " jest niepoprawna");
+        if(!b) {
+            let adr = 0;
+            Object.keys(this.machine.memory.addresses).forEach( (elem, key) => {
+                console.log(value + " | " + elem + " | "+key);
+                if(elem === value) {
+                    adr = this.machine.memory.addresses[elem].adr*4;
+                    console.log(adr);
+                }
+            });
+            return adr;
+        }
 
         if(b.length === 1) {
             let vr = value.replace("(", "").replace(")", "");
@@ -169,16 +204,16 @@ export default class VonNeumann extends Component {
         }
     }
 
-    run() {
+    executeCommand() {
         try {
-            if( !this.machine.ready || this.machine.error ) throw new Error("Kod programu nie został jeszcze skompilowany");
-            console.log("-------------------------");
-            console.log(this.machine.currentOp);
+            if( !this.machine.ready || this.machine.error ) throw new Error("Najpierw skompiluj kod programu");
+
             let operation = this.machine.instructions.code[this.machine.currentOp++];
-            console.log(operation.command + "," + operation.p1 + "," + operation.p2);
-            switch(operation.command) {
+
+            switch( operation.command ) {
                 case 'load':
                     this.chngAccContent(operation.p1, this.memoryRead(operation.p2));
+                    this.log("Załadowano " + operation.p2 + " do " + operation.p1, "exe");
                     break;
                 
                 case 'add':
@@ -186,6 +221,7 @@ export default class VonNeumann extends Component {
                     newValue += this.memoryRead(operation.p2);
     
                     this.chngAccContent(operation.p1, newValue);
+                    this.log("Dodano " + operation.p2 + " do " + operation.p1, "exe");
                     break;
 
                 case 'sub':
@@ -193,6 +229,7 @@ export default class VonNeumann extends Component {
                     newValue -= this.memoryRead(operation.p2);
     
                     this.chngAccContent(operation.p1, newValue);
+                    this.log("Odjęto " + operation.p2 + " od " + operation.p1, "exe");
                     break;
 
                 case 'mult':
@@ -200,6 +237,7 @@ export default class VonNeumann extends Component {
                     newValue *= this.memoryRead(operation.p2);
     
                     this.chngAccContent(operation.p1, newValue);
+                    this.log("Domnożono " + operation.p2 + " do " + operation.p1, "exe");
                     break;
                 
                 case 'div':
@@ -210,34 +248,39 @@ export default class VonNeumann extends Component {
                     newValue = Math.floor(newValue / param);
     
                     this.chngAccContent(operation.p1, newValue);
+                    this.log("Podzielono zawartość " + operation.p2 + " przez " + operation.p1, "exe");
                     break;
                 
                 case 'jump':
                     this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    this.log("Skok do " + operation.p1, "exe");
                     break;
     
                 case 'jneg': 
                     if(this.machine.lastAcc === "A" && this.machine.accA < 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
                     if(this.machine.lastAcc === "B" && this.machine.accB < 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    this.log("Skok jeśli neg do " + operation.p1, "exe");
                     break;
     
                 case 'jpos':
                     if(this.machine.lastAcc === "A" && this.machine.accA > 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
                     if(this.machine.lastAcc === "B" && this.machine.accB > 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    this.log("Skok jeśli pos do " + operation.p1, "exe");
                     break;
     
                 case 'jzero':
                     if(this.machine.lastAcc === "A" && this.machine.accA === 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
                     if(this.machine.lastAcc === "B" && this.machine.accB === 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    this.log("Skok jeśli zero do " + operation.p1, "exe");
                     break;
     
                 case 'jnzero':
                     if(this.machine.lastAcc === "A" && this.machine.accA !== 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
                     if(this.machine.lastAcc === "B" && this.machine.accB !== 0) this.machine.currentOp = this.machine.instructions.labels[operation.p1];
+                    this.log("Skok jeśli nie zero do " + operation.p1, "exe");
                     break;
     
                 case 'store':
-                //console.log(this.storePath(operation.secondParam));
                     if(operation.p1.indexOf("A") !== -1) {
                         this.machine.lastAcc = "A";
                         this.memoryStore(this.machine.accA, operation.p2);
@@ -245,6 +288,7 @@ export default class VonNeumann extends Component {
                         this.machine.lastAcc = "B";
                         this.memoryStore(this.machine.accB, operation.p2);
                     }
+                    this.log("Zapis zawartości " + operation.p1 + " do " + operation.p2, "exe");
                     break;
                     
                 case 'halt':
@@ -256,20 +300,27 @@ export default class VonNeumann extends Component {
                     throw new Error("Nieznany rozkaz");
             }
 
-            if(this.machine.running) setTimeout( () => this.run(), this.state.speed);
+            if(this.machine.running) setTimeout( () => this.executeCommand(), this.state.speed);
         } catch(e) {
             this.log(e.name + ": " + e.message, "error");
             this.machine.ready = false;
             this.machine.error = true;
         } finally {
-            this.setState(this.machine);
+            this.setState({
+                accA: this.machine.accA,
+                accB: this.machine.accB,
+                ready: this.machine.ready,
+                error: this.machine.error,
+                memory: this.machine.memory,
+                running: this.machine.running
+            });
         }
     }
 
     start() {
         this.machine.running = true;
         this.machine.currentOp = 0;
-        this.run();
+        this.executeCommand();
     }
 
     memoryStore(value, adr) {
@@ -278,11 +329,7 @@ export default class VonNeumann extends Component {
             if(!address) throw new Error("Zmienna " + adr + " niezostała zadeklarowana");
 
             this.machine.memory.variables[address.adr] = value;
-        } else {
-            console.log("Adres do zapisania" + this.memoryRead(adr));
-            this.machine.memory.variables[ this.memoryRead(adr) / 4 ] = value;
-            console.log(this.machine.memory.variables);
-        }
+        } else this.machine.memory.variables[ this.memoryRead(adr) / 4 ] = value;
     }
 
     chngAccContent(acc, value) {
@@ -297,59 +344,37 @@ export default class VonNeumann extends Component {
     }
    
     log(text, type = "info") {
-        this.machine.logs.push({text, type});
+        this.setState({ logs: [...this.state.logs, {text, type} ]});
     }
 
     onChange(code) {
-        this.machine.code = code;
+        let expires = new Date();
+        expires.setDate(expires.getTime() + 1800000);
+
+        cookie.save("code", code, { path: "/"} );
         this.setState({ code });
     }
 
     changeSpeed(value) {
-        if(!isNaN(value)) {
-            this.setState({ speed: +value });
-            this.machine.speed = +value;
-        }
+        if(!isNaN(value)) this.setState({ speed: +value }, () => {
+            let expires = new Date();
+            expires.setDate(expires.getTime() + 1800000);
+
+            cookie.save("speed", this.state.speed, { path: "/"} );
+        });
+    }
+
+    componentDidMount() {
+        let code = cookie.load('code');
+        if(typeof code !== "undefined") this.setState({ code });
+        let speed = cookie.load('speed');
+        if(typeof speed !== "undefined") this.setState({ speed: +speed });
     }
 
     render() {
         return (
             <Container fluid className="machine">
-                { this.state.showSettings && <div className="settings-popup">
-                    <div className="fog" onClick={ () => this.setState({ showSettings: false }) }/>
-                    <div className="settings-content">
-                        <div className="label"> Prędkość działania </div>
-                        <div className="keke">
-                            <label>
-                                <input type="radio" name="option" value="100" 
-                                    onChange={ event => this.changeSpeed(event.target.value) } 
-                                    checked={ this.state.speed ===100 ? true : false }
-                                /> Wolno 
-                            </label>
-                            <br />
-                            <label>
-                                <input type="radio" name="option" value="50" 
-                                    onChange={ event => this.changeSpeed(event.target.value) } 
-                                    checked={ this.state.speed ===50 ? true : false }
-                                /> Średnio
-                            </label>
-                            <br />
-                            <label>
-                                <input type="radio" name="option" value="10" 
-                                    onChange={ event => this.changeSpeed(event.target.value) } 
-                                    checked={ this.state.speed ===10 ? true : false }
-                                /> Szybko
-                            </label>
-                            <br />
-                            <label>
-                                <input type="radio" name="option" value="3" 
-                                    onChange={ event => this.changeSpeed(event.target.value) } 
-                                    checked={ this.state.speed ===3 ? true : false }
-                                /> Bardzo szybko | Ostrożnie!
-                            </label>
-                        </div>
-                    </div>
-                </div> }
+                { this.state.showSettings &&  <Settings changeSpeed={ value => this.changeSpeed(value) } speed={ this.state.speed } close={ () => this.setState({ showSettings: false }) } />}
                 <Row>
                     <Col md="4" xs="12">
                         <div className="label">Kod</div>
@@ -365,33 +390,15 @@ export default class VonNeumann extends Component {
                                 value={ this.state.code }
                                 onChange={ value => this.onChange(value) }
                             /> 
-                            <textarea value={ this.state.code } onChange={ value => { this.setState({ code: value.target.value }); this.machine.code = value.target.value } }/>    
+                            <textarea value={ this.state.code } onChange={ value => this.onChange(value.target.value) } />    
                         </div>
                     </Col>
                     <Col md="3" xs="12">
                         <div>
                             <div className="label"> Stan </div>
-                            <div className="state">
-                                { this.state.code === "" ?
-                                    <div className="state-waiting"> Wprowadź kod </div> :
-                                    <React.Fragment>
-                                        { this.state.error ?
-                                            <div className="state-error"> Wystąpił błąd </div>:
-                                            <React.Fragment>
-                                                { this.machine.memory.variables.length === 0 ?
-                                                    <div className="state-compile"> Skompiluj wprowadzony kod </div>: 
-                                                    <React.Fragment>
-                                                        { this.machine.running ?
-                                                            <div className="state-running"> Runnnnnnning </div> :
-                                                            <div className="state-ready"> Gotowy do działania </div>
-                                                        }
-                                                    </React.Fragment>
-                                                }
-                                            </React.Fragment>
-                                        }
-                                    </React.Fragment>
-                                }
-                            </div>
+                            <State code={ this.state.code === "" ? false : true } 
+                                error={ this.state.error } running={ this.state.running }
+                                compiled={ this.state.memory.variables.length === 0 ? false : true } />
                         </div>
 
                         <div className="control">
@@ -400,73 +407,31 @@ export default class VonNeumann extends Component {
                                 <div onClick={ () => this.start() } className={ this.state.ready ? "sel": ""}> Uruchom </div>
                                 <i onClick={ () => this.setState({ showSettings: true }) } className="fas fa-cog settings" />
                             </div>
-                            <div onClick={ () => this.run() }> Wykonaj krok </div>
+                            <div onClick={ () => this.executeCommand() }> Wykonaj krok </div>
                         </div>
                         
                         <div className="acc">
                             <div>
                                 <div className="label"> @A </div>
-                                { this.machine.accA }
+                                { this.state.accA }
                             </div>
                             <div>
                                 <div className="label"> @B </div>
-                                { this.machine.accB }
+                                { this.state.accB }
                             </div>
                         </div>
 
                         <div className={ this.state.error ? "log sel" : "log" }>
-                            <div className="label"> Dziennik zdarzeń </div>
-                            <div className="logs">
-                                { this.state.logs.map( (value, key) => (
-                                    <p key={key} className={ "log-" + value.type }>
-                                        { key + 1 } ) { value.text }
-                                    </p>
-                                )) }
+                            <div className="label"> Dziennik zdarzeń 
+                                <i className="fas fa-broom" onClick={ () => this.setState({ logs: [] }) }/>
                             </div>
+                            <Log logs={ this.state.logs } />
                         </div>
                     </Col>
                     <Col md="5" xs="12">
                         <div className="memory">
                             <div className="label"> Pamięć operacyjna </div>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>
-                                            Nazwa
-                                        </th>
-                                        <th>
-                                            Adres
-                                        </th>
-                                        <th>
-                                            Wartość
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    { this.state.memory.variables.map( (value, key) => {
-                                        let name = Object.keys(this.machine.memory.addresses).find( value => (this.machine.memory.addresses[value].adr === key));
-                                        let isTab = Object.keys(this.machine.memory.addresses).find( value => (this.machine.memory.addresses[value].type === "tab" && this.machine.memory.addresses[value].adr === key));
-                                        let len = "";
-                                        if(isTab) len = this.machine.memory.addresses[isTab].len;
-                
-                                        return(
-                                            <tr key={ key } className={ isTab ? "tab" : "" }>
-                                                { name &&
-                                                    <td rowSpan={ len } className="name">
-                                                        { name }
-                                                    </td>
-                                                }
-                                                <td>
-                                                    { key*4 }
-                                                </td>
-                                                <td>
-                                                    { value }
-                                                </td>
-                                            </tr>
-                                        );
-                                    }) }
-                                </tbody>
-                            </table>
+                            <Memory variables={ this.state.memory.variables } addresses={ this.state.memory.addresses } />
                         </div>
                     </Col>
                 </Row>
@@ -474,31 +439,3 @@ export default class VonNeumann extends Component {
         );
     }
 }
-/*
-
-
-    slimak() {
-        let kek = ['Konstytucja', 'kek', 'elo', 'meqeq', 'kozik', 'rrrrr', 'karwasz'];
-
-        let lastRandoms = [];
-
-        kek: for(let i = 0; i < 100; i++) {
-            let random = this.getRandomInt(0, kek.length - 1);
-
-            for(let j = 0; j < lastRandoms.length; j++) {
-                if( random === lastRandoms[j] ) continue kek;
-            }
-
-            lastRandoms.unshift(random);
-
-            if(lastRandoms.length > 5) lastRandoms.pop();
-
-            console.log(kek[random]);
-        }
-    }
-
-    getRandomInt(min, max) {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }*/

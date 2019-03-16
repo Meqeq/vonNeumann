@@ -1,0 +1,40 @@
+table {
+    border: 0.1em solid rgb(85, 10, 10);
+    width: 90%;
+    margin: 1em auto;
+}
+
+td,th {
+    width: 30%;
+    text-align: center;
+}
+
+th {
+    background-color: rgb(97, 97, 97);
+    color: #fff;
+    text-align: center;
+    border-left: 0.1em solid rgb(85, 10, 10);
+}
+
+th:first-child {
+    border-left: none;
+}
+
+tr:nth-child(odd) {
+    background-color: rgb(187, 187, 187);
+}
+
+tr:nth-child(even) {
+    background-color: #fff;
+}
+
+tr {
+    border-top: 0.1em solid #000;
+    border-bottom: 0.1em solid #000;
+}
+
+.tab > .name {
+    border-top: 0.3em solid rgb(85, 10, 10);
+    border-bottom: 0.3em solid rgb(85, 10, 10);
+    background-color: rgb(235, 100, 100);
+}

@@ -16,6 +16,9 @@ export default class App extends Component {
         <React.StrictMode>
           <VN />
         </React.StrictMode>
+        <footer>
+          MeqeqWengiel &amp; Assembler GANG &amp; Assemblerowe Świry | 2018
+        </footer>
       </React.Fragment>
     );
   }
